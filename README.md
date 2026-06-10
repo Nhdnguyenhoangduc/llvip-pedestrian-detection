@@ -1,4 +1,4 @@
-# 🔦 Low-Light Pedestrian Detection via Visible-Infrared Fusion + YOLOv8
+# 🔦 Phát hiện Người đi bộ trong Điều kiện Ánh sáng yếu qua Dung hợp Ảnh Khả kiến - Hồng ngoại + YOLOv8
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange.svg)](https://github.com/ultralytics/ultralytics)
@@ -6,181 +6,293 @@
 [![Dataset: LLVIP](https://img.shields.io/badge/Dataset-LLVIP-red.svg)](https://bupt-ai-cz.github.io/LLVIP/)
 [![Platform: Kaggle](https://img.shields.io/badge/Platform-Kaggle-20BEFF.svg)](https://www.kaggle.com/)
 
-Pedestrian detection in low-light environments using **pixel-level image fusion** of visible (RGB) and infrared (IR) modalities, fine-tuning **YOLOv8s** on the **LLVIP** benchmark dataset.
+Phát hiện người đi bộ trong môi trường ánh sáng yếu bằng cách sử dụng phương pháp **dung hợp ảnh cấp độ pixel** từ hai miền ảnh khả kiến (RGB) và hồng ngoại (IR), tiến hành tinh chỉnh (fine-tune) mô hình **YOLOv8s** trên bộ dữ liệu chuẩn **LLVIP**.
 
 ---
 
-## 📌 Table of Contents
+## 📌 Mục lục
 
-- [Introduction](#introduction)
-- [Objectives](#objectives)
-- [System Architecture](#system-architecture)
-- [Dataset](#dataset)
-- [Data Preprocessing](#data-preprocessing)
-- [Model Architecture](#model-architecture)
-- [Training Pipeline](#training-pipeline)
-- [Evaluation Metrics](#evaluation-metrics)
-- [Experimental Results](#experimental-results)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Run Training](#run-training)
-  - [Run Inference](#run-inference)
-  - [Retrain from Scratch](#retrain-from-scratch)
-- [Project Structure](#project-structure)
-- [Gradio Demo](#gradio-demo)
-- [Limitations](#limitations)
-- [Future Work](#future-work)
-
----
-
-## Introduction
-
-Standard RGB cameras degrade significantly in darkness, making nighttime pedestrian detection a critical challenge for autonomous driving, surveillance, and public safety systems. Infrared cameras, however, capture thermal radiation and remain effective regardless of illumination.
-
-This project proposes a **dual-modality fusion pipeline** that blends visible-light and infrared images at the pixel level (weighted alpha blending), then trains **YOLOv8s** — a state-of-the-art real-time object detector — on the fused images using the **LLVIP** (Low-Light Visible-Infrared Paired) dataset.
+- [Giới thiệu](#giới-thiệu)
+- [Mục tiêu](#mục-tiêu)
+- [Kiến trúc Hệ thống](#kiến-trúc-hệ-thống)
+- [Bộ dữ liệu](#bộ-dữ-liệu)
+- [Tiền xử lý Dữ liệu](#tiền-xử-lý-dữ-liệu)
+- [Kiến trúc Mô hình](#kiến-trúc-mô-hình)
+- [Quy trình Huấn luyện](#quy-trình-huấn-luyện)
+- [Các chỉ số Đánh giá](#các-chỉ-số-đánh-giá)
+- [Kết quả Thực nghiệm](#kết-quả-thực-nghiệm)
+- [Cài đặt](#cài-đặt)
+- [Hướng dẫn Sử dụng](#hướng-dẫn-sử-dụng)
+  - [Chuẩn bị Dữ liệu](#chuẩn-bị-dữ-liệu)
+  - [Chạy Huấn luyện](#chạy-huấn-luyện)
+  - [Chạy Dự đoán](#chạy-dự-đoán)
+  - [Huấn luyện lại từ đầu](#huấn-luyện-lại-từ-đầu)
+  - [Khởi chạy Gradio Demo](#khởi-chạy-gradio-demo)
+- [Cấu trúc Dự án](#cấu-trúc-dự-án)
+- [Giao diện Gradio Demo](#giao-diện-gradio-demo)
+- [Hạn chế](#hạn-chế)
+- [Hướng phát triển Tương lai](#hướng-phát-triển-tương-lai)
+- [Trích dẫn](#trích-dẫn)
+- [Giấy phép](#giấy-phép)
 
 ---
 
-## Objectives
+## Giới thiệu
 
-- Implement a reproducible multimodal image fusion pipeline for low-light pedestrian detection.
-- Convert VOC-format annotations to YOLO format for seamless integration with Ultralytics.
-- Fine-tune YOLOv8s on fused visible-infrared images.
-- Evaluate detection performance using standard COCO metrics (mAP@50, mAP@50-95, Precision, Recall, F1).
-- Provide a Gradio-based interactive demo for real-time inference.
+Các camera RGB thông thường bị suy giảm chất lượng nghiêm trọng trong bóng tối, khiến việc phát hiện người đi bộ vào ban đêm trở thành một thách thức lớn đối với các hệ thống lái xe tự động, giám sát an ninh và an toàn công cộng. Tuy nhiên, camera hồng ngoại lại có khả năng thu bức xạ nhiệt và hoạt động hiệu quả bất kể điều kiện chiếu sáng.
+
+Dự án này đề xuất một **quy trình dung hợp dữ liệu đa miền** nhằm trộn ảnh ánh sáng khả kiến và ảnh hồng ngoại ở cấp độ pixel (trộn alpha theo trọng số), sau đó huấn luyện **YOLOv8s** — một mô hình phát hiện vật thể thời gian thực tiên tiến hiện nay — trên các ảnh đã dung hợp thuộc bộ dữ liệu **LLVIP** (Low-Light Visible-Infrared Paired).
 
 ---
 
-## System Architecture
+## Mục tiêu
 
+- Triển khai một quy trình dung hợp ảnh đa miền có tính tái lặp cao phục vụ bài toán phát hiện người đi bộ trong đêm tối.
+- Chuyển đổi định dạng nhãn từ Pascal VOC XML sang định dạng YOLO để tích hợp mượt mà với thư viện Ultralytics.
+- Tinh chỉnh mô hình YOLOv8s trên dữ liệu ảnh dung hợp khả kiến - hồng ngoại.
+- Đánh giá hiệu suất phát hiện dựa trên các chỉ số chuẩn COCO (mAP@50, mAP@50-95, Precision, Recall, F1-Score).
+- Cung cấp một giao diện tương tác trực quan bằng Gradio để dự đoán thời gian thực.
+
+---
+
+## Kiến trúc Hệ thống
 ```
-LLVIP Dataset
-├── Visible (RGB) images     ─────────────────────────────────────────┐
-└── Infrared (IR) images     ────── Alpha Blend (α=0.5, β=0.5) ──────► Fused Image
-                                                                       │
-LLVIP Annotations (VOC XML) ──── parse_voc_xml_to_yolo() ────────────► YOLO Labels (.txt)
-                                                                       │
-                              YOLOv8s Pretrained (COCO)                │
-                                     │                                 │
-                                     └─── Fine-tune on Fused Data ◄───┘
-                                                   │
-                                          best.pt / last.pt
-                                                   │
-                              Inference (conf=0.25, IoU=0.45)
-                                                   │
-                                       Detection Results + Gradio Demo
+Bộ dữ liệu LLVIP
+├── Ảnh Khả kiến (RGB)      ─────────────────────────────────────────┐
+└── Ảnh Hồng ngoại (IR)     ────── Trộn Alpha (α=0.5, β=0.5) ────────► Ảnh Dung hợp
+│
+Nhãn LLVIP (VOC XML)    ──── parse_voc_xml_to_yolo() ────────────────► Nhãn YOLO (.txt)
+│
+YOLOv8s Tiền huấn luyện (COCO)            │
+│                                  │
+└─── Tinh chỉnh trên Dữ liệu ◄─────┘
+│
+best.pt / last.pt
+│
+Dự đoán (conf=0.25, IoU=0.45)
+│
+Kết quả Phát hiện + Gradio Demo
 ```
 
 ---
 
-## Dataset
+---
 
-**LLVIP** (Low-Light Visible-Infrared Paired) is a benchmark dataset specifically designed for person detection in low-light conditions.
+## Bộ dữ liệu
 
-| Property | Value |
+**LLVIP** (Low-Light Visible-Infrared Paired) là bộ dữ liệu chuẩn được thiết kế riêng cho bài toán phát hiện người trong điều kiện ánh sáng yếu.
+
+| Thuộc tính | Giá trị |
 |---|---|
-| Total Images | 30,976 paired images (15,488 scenes) |
-| Training Set | ~12,025 images (85% of LLVIP train split) |
-| Validation Set | ~2,122 images (15% of LLVIP train split + official test) |
-| Resolution | 1280 × 1024 pixels |
-| Modalities | Visible (RGB) + Infrared (thermal) |
-| Classes | 1 — `person` (includes `pedestrian`) |
-| Annotation Format | Pascal VOC XML |
-| Source | [LLVIP Official](https://bupt-ai-cz.github.io/LLVIP/) |
+| **Tổng số lượng ảnh** | 30.976 ảnh ghép cặp (15.488 cảnh) |
+| **Tập Huấn luyện (Train)** | ~12.025 ảnh (Chiếm 85% tập huấn luyện gốc của LLVIP) |
+| **Tập Kiểm thử (Val/Test)** | ~2.122 ảnh (Chiếm 15% tập huấn luyện gốc + tập test chính thức) |
+| **Độ phân giải** | 1280 × 1024 pixels |
+| **Các miền dữ liệu** | Khả kiến (RGB) + Hồng ngoại (Nhiệt) |
+| **Các lớp đối tượng** | 1 — `person` (bao gồm cả `pedestrian`) |
+| **Định dạng nhãn gốc** | Pascal VOC XML |
+| **Nguồn dữ liệu** | [LLVIP Official](https://bupt-ai-cz.github.io/LLVIP/) |
 
-All paired images share identical filenames across visible and infrared directories.
+Tất cả các cặp ảnh đối ứng đều chia sẻ chung tên tệp giống nhau giữa các thư mục ảnh khả kiến và hồng ngoại.
 
 ---
 
-## Data Preprocessing
+## Tiền xử lý Dữ liệu
 
-### 1. Image Fusion
+### 1. Dung hợp Ảnh
 
-Each visible-infrared pair is fused using **weighted alpha blending**:
+Mỗi cặp ảnh khả kiến - hồng ngoại được dung hợp bằng phương pháp **trộn alpha theo trọng số (weighted alpha blending)**:
 
 ```
 Fused = α × Visible_BGR + β × Infrared_as_BGR
 ```
+Dưới đây là toàn bộ nội dung tệp README.md bằng tiếng Việt được đặt trong khối mã để bạn sao chép trực tiếp vào mã nguồn của mình:
 
-- `α = 0.5`, `β = 0.5` (equal contribution from both modalities)
-- Infrared images (grayscale) are converted to 3-channel BGR before blending
-- Images are spatially aligned by resizing infrared to match visible resolution
+Markdown
+# 🔦 Phát hiện Người đi bộ trong Điều kiện Ánh sáng yếu qua Dung hợp Ảnh Khả kiến - Hồng ngoại + YOLOv8
 
-### 2. Annotation Conversion
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange.svg)](https://github.com/ultralytics/ultralytics)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Dataset: LLVIP](https://img.shields.io/badge/Dataset-LLVIP-red.svg)](https://bupt-ai-cz.github.io/LLVIP/)
+[![Platform: Kaggle](https://img.shields.io/badge/Platform-Kaggle-20BEFF.svg)](https://www.kaggle.com/)
 
-VOC XML annotations are converted to YOLO format:
+Phát hiện người đi bộ trong môi trường ánh sáng yếu bằng cách sử dụng phương pháp **dung hợp ảnh cấp độ pixel** từ hai miền ảnh khả kiến (RGB) và hồng ngoại (IR), tiến hành tinh chỉnh (fine-tune) mô hình **YOLOv8s** trên bộ dữ liệu chuẩn **LLVIP**.
+
+---
+
+## 📌 Mục lục
+
+- [Giới thiệu](#giới-thiệu)
+- [Mục tiêu](#mục-tiêu)
+- [Kiến trúc Hệ thống](#kiến-trúc-hệ-thống)
+- [Bộ dữ liệu](#bộ-dữ-liệu)
+- [Tiền xử lý Dữ liệu](#tiền-xử-lý-dữ-liệu)
+- [Kiến trúc Mô hình](#kiến-trúc-mô-hình)
+- [Quy trình Huấn luyện](#quy-trình-huấn-luyện)
+- [Các chỉ số Đánh giá](#các-chỉ-số-đánh-giá)
+- [Kết quả Thực nghiệm](#kết-quả-thực-nghiệm)
+- [Cài đặt](#cài-đặt)
+- [Hướng dẫn Sử dụng](#hướng-dẫn-sử-dụng)
+  - [Chuẩn bị Dữ liệu](#chuẩn-bị-dữ-liệu)
+  - [Chạy Huấn luyện](#chạy-huấn-luyện)
+  - [Chạy Dự đoán](#chạy-dự-đoán)
+  - [Huấn luyện lại từ đầu](#huấn-luyện-lại-từ-đầu)
+  - [Khởi chạy Gradio Demo](#khởi-chạy-gradio-demo)
+- [Cấu trúc Dự án](#cấu-trúc-dự-án)
+- [Giao diện Gradio Demo](#giao-diện-gradio-demo)
+- [Hạn chế](#hạn-chế)
+- [Hướng phát triển Tương lai](#hướng-phát-triển-tương-lai)
+- [Trích dẫn](#trích-dẫn)
+- [Giấy phép](#giấy-phép)
+
+---
+
+## Giới thiệu
+
+Các camera RGB thông thường bị suy giảm chất lượng nghiêm trọng trong bóng tối, khiến việc phát hiện người đi bộ vào ban đêm trở thành một thách thức lớn đối với các hệ thống lái xe tự động, giám sát an ninh và an toàn công cộng. Tuy nhiên, camera hồng ngoại lại có khả năng thu bức xạ nhiệt và hoạt động hiệu quả bất kể điều kiện chiếu sáng.
+
+Dự án này đề xuất một **quy trình dung hợp dữ liệu đa miền** nhằm trộn ảnh ánh sáng khả kiến và ảnh hồng ngoại ở cấp độ pixel (trộn alpha theo trọng số), sau đó huấn luyện **YOLOv8s** — một mô hình phát hiện vật thể thời gian thực tiên tiến hiện nay — trên các ảnh đã dung hợp thuộc bộ dữ liệu **LLVIP** (Low-Light Visible-Infrared Paired).
+
+---
+
+## Mục tiêu
+
+- Triển khai một quy trình dung hợp ảnh đa miền có tính tái lặp cao phục vụ bài toán phát hiện người đi bộ trong đêm tối.
+- Chuyển đổi định dạng nhãn từ Pascal VOC XML sang định dạng YOLO để tích hợp mượt mà với thư viện Ultralytics.
+- Tinh chỉnh mô hình YOLOv8s trên dữ liệu ảnh dung hợp khả kiến - hồng ngoại.
+- Đánh giá hiệu suất phát hiện dựa trên các chỉ số chuẩn COCO (mAP@50, mAP@50-95, Precision, Recall, F1-Score).
+- Cung cấp một giao diện tương tác trực quan bằng Gradio để dự đoán thời gian thực.
+
+---
+
+## Kiến trúc Hệ thống
+
+Bộ dữ liệu LLVIP
+├── Ảnh Khả kiến (RGB)      ─────────────────────────────────────────┐
+└── Ảnh Hồng ngoại (IR)     ────── Trộn Alpha (α=0.5, β=0.5) ────────► Ảnh Dung hợp
+│
+Nhãn LLVIP (VOC XML)    ──── parse_voc_xml_to_yolo() ────────────────► Nhãn YOLO (.txt)
+│
+YOLOv8s Tiền huấn luyện (COCO)            │
+│                                  │
+└─── Tinh chỉnh trên Dữ liệu ◄─────┘
+│
+best.pt / last.pt
+│
+Dự đoán (conf=0.25, IoU=0.45)
+│
+Kết quả Phát hiện + Gradio Demo
+
+
+---
+
+## Bộ dữ liệu
+
+**LLVIP** (Low-Light Visible-Infrared Paired) là bộ dữ liệu chuẩn được thiết kế riêng cho bài toán phát hiện người trong điều kiện ánh sáng yếu.
+
+| Thuộc tính | Giá trị |
+|---|---|
+| **Tổng số lượng ảnh** | 30.976 ảnh ghép cặp (15.488 cảnh) |
+| **Tập Huấn luyện (Train)** | ~12.025 ảnh (Chiếm 85% tập huấn luyện gốc của LLVIP) |
+| **Tập Kiểm thử (Val/Test)** | ~2.122 ảnh (Chiếm 15% tập huấn luyện gốc + tập test chính thức) |
+| **Độ phân giải** | 1280 × 1024 pixels |
+| **Các miền dữ liệu** | Khả kiến (RGB) + Hồng ngoại (Nhiệt) |
+| **Các lớp đối tượng** | 1 — `person` (bao gồm cả `pedestrian`) |
+| **Định dạng nhãn gốc** | Pascal VOC XML |
+| **Nguồn dữ liệu** | [LLVIP Official](https://bupt-ai-cz.github.io/LLVIP/) |
+
+Tất cả các cặp ảnh đối ứng đều chia sẻ chung tên tệp giống nhau giữa các thư mục ảnh khả kiến và hồng ngoại.
+
+---
+
+## Tiền xử lý Dữ liệu
+
+### 1. Dung hợp Ảnh
+
+Mỗi cặp ảnh khả kiến - hồng ngoại được dung hợp bằng phương pháp **trộn alpha theo trọng số (weighted alpha blending)**:
+
+Fused = α × Visible_BGR + β × Infrared_as_BGR
+
+
+- Sử dụng tỷ lệ `α = 0.5`, `β = 0.5` (đóng góp đồng đều từ cả hai miền ảnh).
+- Ảnh hồng ngoại (ảnh xám) được chuyển đổi sang định dạng 3 kênh BGR trước khi thực hiện trộn.
+- Các ảnh được căn chỉnh không gian bằng cách thay đổi kích thước ảnh hồng ngoại khớp với độ phân giải ảnh khả kiến.
+
+### 2. Chuyển đổi Định dạng Nhãn
+
+Các nhãn định dạng VOC XML được chuyển đổi sang cấu trúc YOLO:
 
 ```
 <class_id> <cx> <cy> <bw> <bh>   (all values normalized to [0,1])
 ```
+- Chỉ giữ lại các nhãn thuộc lớp `person` và `pedestrian` (được ánh xạ về ID lớp `0`).
+- Các hộp bao (Bounding box) được cắt gọn theo ranh giới của ảnh trước khi chuẩn hóa.
 
-- Only `person` and `pedestrian` class labels are retained (mapped to class ID `0`)
-- Bounding boxes are clipped to image boundaries before normalization
+### 3. Phân chia Tập dữ liệu
 
-### 3. Train/Val Split
-
-- 85% of the LLVIP official training set → training
-- 15% of the LLVIP official training set → validation
-- Official LLVIP test set used for final evaluation
+- 85% tập huấn luyện chính thức của LLVIP được đưa vào cấu phần huấn luyện (Training).
+- 15% tập huấn luyện chính thức của LLVIP được dùng làm tập kiểm định (Validation).
+- Tập thử nghiệm chính thức của LLVIP được giữ nguyên cho khâu đánh giá cuối cùng.
 
 ---
 
-## Model Architecture
+## Kiến trúc Mô hình
 
-**YOLOv8s** (Small variant of YOLOv8 by Ultralytics):
+Dự án sử dụng cấu hình **YOLOv8s** (Phiên bản cỡ nhỏ của dòng mô hình YOLOv8 phát triển bởi Ultralytics):
 
-| Component | Details |
+| Thành phần | Chi tiết |
 |---|---|
-| Backbone | CSPDarknet with C2f modules |
-| Neck | PANet (Path Aggregation Network) |
-| Head | Decoupled detection head |
-| Input Size | 640 × 640 |
-| Parameters | ~11.2M |
-| Pretrained Weights | COCO (80 classes) |
-| Fine-tuned Classes | 1 (`person`) |
+| **Mạng xương sống (Backbone)** | CSPDarknet tích hợp các mô-đun C2f |
+| **Mạng cổ (Neck)** | PANet (Path Aggregation Network) |
+| **Đầu phát hiện (Head)** | Đầu phát hiện tách rời (Decoupled head) |
+| **Kích thước đầu vào** | 640 × 640 |
+| **Số lượng tham số** | ~11.2M |
+| **Trọng số tiền huấn luyện** | COCO (80 lớp) |
+| **Lớp đối tượng tinh chỉnh** | 1 (`person`) |
 
 ---
 
-## Training Pipeline
+## Quy trình Huấn luyện
 
-| Hyperparameter | Value |
+| Siêu tham số | Giá trị |
 |---|---|
-| Epochs | 50 |
-| Batch Size | 16 |
-| Image Size | 640 |
-| Optimizer | AdamW |
-| Initial LR (`lr0`) | 0.01 |
-| Final LR (`lrf`) | 0.001 |
-| LR Schedule | Cosine annealing |
-| Weight Decay | 5e-4 |
-| Warmup Epochs | 3 |
-| Early Stopping Patience | 15 |
-| Workers | 4 |
-| Pretrained | Yes (COCO) |
+| **Số chu kỳ (Epochs)** | 50 |
+| **Kích thước lô (Batch Size)** | 16 |
+| **Kích thước ảnh** | 640 |
+| **Thuật toán tối ưu (Optimizer)** | AdamW |
+| **Tốc độ học ban đầu (`lr0`)** | 0.01 |
+| **Tốc độ học cuối cùng (`lrf`)** | 0.001 |
+| **Lịch trình giảm tốc độ học** | Cosine annealing |
+| **Hệ số suy giảm trọng số** | 5e-4 |
+| **Chu kỳ khởi động (Warmup Epochs)** | 3 |
+| **Độ kiên nhẫn dừng sớm (Patience)** | 15 |
+| **Số luồng xử lý (Workers)** | 4 |
+| **Sử dụng trọng số nền** | Có (COCO) |
 
 ---
 
-## Evaluation Metrics
+## Các chỉ số Đánh giá
 
-Metrics are computed using the Ultralytics validation pipeline (COCO-standard):
+Các chỉ số được tính toán thông qua quy trình kiểm định tiêu chuẩn của thư viện Ultralytics (theo chuẩn COCO):
 
-| Metric | Description |
+| Chỉ số | Mô tả |
 |---|---|
-| **Precision** | TP / (TP + FP) at IoU ≥ 0.50 |
-| **Recall** | TP / (TP + FN) at IoU ≥ 0.50 |
-| **mAP@50** | Mean Average Precision at IoU = 0.50 |
-| **mAP@50-95** | Mean Average Precision across IoU thresholds [0.50:0.05:0.95] |
-| **F1-Score** | Harmonic mean of Precision and Recall |
+| **Precision** | Tỷ lệ chính xác: TP / (TP + FP) tính tại mức IoU ≥ 0.50 |
+| **Recall** | Độ bao phủ: TP / (TP + FN) tính tại mức IoU ≥ 0.50 |
+| **mAP@50** | Độ chính xác trung bình trung bình tại ngưỡng IoU = 0.50 |
+| **mAP@50-95** | Độ chính xác trung bình trung bình trên các ngưỡng IoU từ [0.50:0.05:0.95] |
+| **F1-Score** | Trung bình điều hòa giữa Precision và Recall |
 
-Inference thresholds: `conf=0.25`, `iou=0.45`.
+Ngưỡng thiết lập khi chạy dự đoán: `conf=0.25`, `iou=0.45`.
 
 ---
 
-## Experimental Results
+## Kết quả Thực nghiệm
 
-> YOLOv8s fine-tuned on the LLVIP visible-infrared fused dataset — **best checkpoint at epoch 32** (50 epochs, AdamW, cosine LR).
+> Mô hình YOLOv8s được tinh chỉnh trên bộ dữ liệu dung hợp khả kiến - hồng ngoại LLVIP — **đạt điểm checkpoint tốt nhất tại epoch thứ 32** (Tổng 50 epochs, tối ưu bằng AdamW, giảm LR theo Cosine).
 
-| Metric | Value |
+| Chỉ số | Giá trị |
 |---|---|
 | **Precision** | **0.9515** |
 | **Recall** | **0.8958** |
@@ -188,39 +300,39 @@ Inference thresholds: `conf=0.25`, `iou=0.45`.
 | **mAP@50-95** | **0.6319** |
 | **F1-Score** | **0.9228** |
 
-> Best confidence threshold for F1: **0.318** — Precision reaches 1.00 at conf 0.863 — Recall reaches 0.98 at low confidence.
+> Ngưỡng tin cậy (Confidence Threshold) tốt nhất cho chỉ số F1 là **0.318**. Precision đạt giá trị tuyệt đối 1.00 tại ngưỡng conf 0.863, trong khi Recall đạt tới 0.98 ở các mức tin cậy thấp.
 
-### Detection Performance Summary
+### Tóm tắt Hiệu suất Phát hiện
 ![Metrics Bar Chart](docs/results/offline_metrics_bar.png)
 
-### Training & Validation Curves
+### Đường cong Huấn luyện & Kiểm thử
 ![Training Curves](docs/results/offline_training_curves.png)
 
-### Evaluation Curves (PR / F1 / Precision / Recall)
+### Các biểu đồ đánh giá hệ thống (PR / F1 / Precision / Recall)
 ![Ultralytics Evaluation Plots](docs/results/offline_ultralytics_plots.png)
 
-### Confusion Matrix
-| Raw counts | Normalized |
+### Ma trận nhầm lẫn (Confusion Matrix)
+| Đếm số lượng thô | Dạng chuẩn hóa (%) |
 |---|---|
 | ![Confusion Matrix](docs/results/confusion_matrix.png) | ![Confusion Matrix Normalized](docs/results/confusion_matrix_normalized.png) |
 
-### Fusion Visualization (Visible vs Infrared vs Fused + GT Boxes)
+### Trực quan hóa kết quả dung hợp (Khả kiến vs Hồng ngoại vs Ảnh Dung hợp + Khung BBox thực tế)
 ![Fusion Samples](assets/fusion_samples_visualization.png)
 
 ---
 
-## Installation
+## Cài đặt
 
-### Requirements
+### Yêu cầu hệ thống
 
-- Python 3.10+
-- CUDA-capable GPU (recommended, tested on Kaggle T4/P100)
-- 16GB+ RAM
+- Python 3.10 trở lên
+- Card đồ họa GPU hỗ trợ CUDA (Khuyên dùng, hệ thống đã được thử nghiệm tốt trên dòng T4/P100 của Kaggle)
+- Bộ nhớ RAM từ 16GB trở lên
 
-### Setup
+### Thiết lập môi trường
 
 ```bash
-git clone https://github.com/Nhdnguyenhoangduc/llvip-pedestrian-detection.git
+git clone [https://github.com/Nhdnguyenhoangduc/llvip-pedestrian-detection.git](https://github.com/Nhdnguyenhoangduc/llvip-pedestrian-detection.git)
 cd llvip-pedestrian-detection
 
 pip install -r requirements.txt
@@ -230,9 +342,9 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Dataset Preparation
+### Chuẩn bị Dữ liệu
 
-Download the LLVIP dataset from the [official source](https://bupt-ai-cz.github.io/LLVIP/) and organize as follows:
+Tải bộ dữ liệu LLVIP từ [official source](https://bupt-ai-cz.github.io/LLVIP/) và tổ chức cấu trúc thư mục như sau:
 
 ```
 data/
@@ -248,7 +360,7 @@ data/
 
 Update paths in the notebook or `configs/paths.yaml`.
 
-### Run Training
+### Chạy Huấn luyện
 
 Open and run the notebook end-to-end:
 
@@ -258,7 +370,7 @@ jupyter notebook notebooks/ai-predict-humman.ipynb
 
 Or run on Kaggle by uploading the notebook and attaching the LLVIP dataset.
 
-### Run Inference
+### Chạy Dự đoán
 
 ```python
 from ultralytics import YOLO
@@ -277,14 +389,14 @@ annotated = results[0].plot()
 cv2.imwrite("output.jpg", annotated)
 ```
 
-### Retrain from Scratch
+### Huấn luyện lại từ đầu
 
-1. Run Cells 1–4 to set up environment, fuse images, and create YOLO labels.
-2. Run Cell 6 to start fine-tuning YOLOv8s.
-3. Run Cell 7 for evaluation.
-4. Run Cell 8 to visualize inference samples.
+1. Thực thi các ô lệnh từ Cell 1 đến Cell 4 để thiết lập môi trường, tiến hành dung hợp ảnh và tạo file nhãn YOLO.
+2. Chạy Cell 6 để bắt đầu quá trình tinh chỉnh mô hình YOLOv8s.
+3. Chạy Cell 7 để trích xuất các thông số đánh giá.
+4. Chạy Cell 8 để xem trực quan các mẫu ảnh dự đoán thực tế.
 
-### Launch Gradio Demo
+### Khởi chạy Gradio Demo
 
 ```bash
 # After training, run the Gradio cell (Cell GUI) in the notebook
@@ -294,7 +406,7 @@ python scripts/gradio_demo.py --model_path runs/llvip_fusion_yolov8s/weights/bes
 
 ---
 
-## Project Structure
+## Cấu trúc Dự án
 
 ```
 llvip-pedestrian-detection/
@@ -321,40 +433,40 @@ llvip-pedestrian-detection/
 
 ---
 
-## Gradio Demo
+## Giao diện Gradio Demo
 
-The notebook includes a full Gradio interactive web interface (Cell GUI) supporting:
+Mã nguồn trong notebook cung cấp một giao diện web tương tác toàn diện (Cell GUI) hỗ trợ các tính năng:
 
-- **Single image upload**: Upload a visible or fused image for detection
-- **Paired upload**: Upload both visible + infrared images for on-the-fly fusion and detection
-- **Configurable thresholds**: Adjust confidence and IoU sliders
-- **Batch inference**: Sample random validation images and display annotated results
-
----
-
-## Limitations
-
-- The fusion strategy (alpha blending) is a simple pixel-level approach; more sophisticated methods (Laplacian pyramid, deep fusion) may yield better results.
-- The model is trained exclusively on the LLVIP dataset and may not generalize to other low-light scenes without retraining.
-- Performance degrades on occluded or very small pedestrians (< 20px height).
-- No multi-class detection — the model detects only `person`.
-- Inference speed depends on GPU availability; CPU inference is significantly slower.
+- **Tải lên một ảnh đơn**: Đưa vào một ảnh khả kiến hoặc ảnh đã dung hợp sẵn để mô hình dự đoán.
+- **Tải lên cặp ảnh đối ứng**: Người dùng tải lên đồng thời cả ảnh khả kiến + ảnh hồng ngoại; hệ thống sẽ tự động thực hiện dung hợp thời gian thực rồi đưa vào mô hình nhận diện.
+- **Tùy chỉnh linh hoạt**: Thanh trượt cho phép thay đổi trực tiếp các ngưỡng Tin cậy (Confidence) và ngưỡng trùng lắp (IoU).
+- **Dự đoán theo lô**: Lấy ngẫu nhiên các mẫu ảnh trong tập kiểm định để hiển thị trực tiếp kết quả kèm hộp bao nhận diện.
 
 ---
 
-## Future Work
+## Hạn chế
 
-- [ ] Experiment with deep learning-based fusion methods (e.g., DenseFuse, RFN-Nest)
-- [ ] Extend to multi-class detection (vehicles, cyclists)
-- [ ] Benchmark YOLOv8n, YOLOv8m, and YOLOv8l variants
-- [ ] Add TensorRT/ONNX export for edge deployment
-- [ ] Implement tracking (ByteTrack / BotSort) for video pedestrian counting
-- [ ] Evaluate on additional low-light datasets (KAIST, CVC-14)
-- [ ] Publish pretrained weights to Hugging Face Hub
+- Chiến lược dung hợp hiện tại (alpha blending) mới dừng lại ở mức xử lý cấp độ pixel đơn giản; việc áp dụng các cơ chế cao cấp hơn (Laplacian pyramid, mạng dung hợp học sâu) hứa hẹn sẽ mang lại kết quả tốt hơn.
+- Mô hình được huấn luyện đặc thù trên bộ dữ liệu LLVIP nên khả năng suy rộng (generalization) sang các ngữ cảnh đêm tối khác có thể bị giảm sút nếu không được học bổ sung.
+- Hiệu suất nhận diện có xu hướng giảm đối với các trường hợp người đi bộ bị che khuất một phần hoặc có kích thước quá nhỏ (chiều cao mẫu nhỏ hơn 20px).
+- Dự án hiện tại chỉ cấu hình nhận diện đơn lớp — mục tiêu duy nhất là lớp person (người).
+- Tốc độ suy luận phụ thuộc lớn vào cấu hình phần cứng; việc chạy ứng dụng trên CPU sẽ chậm hơn đáng kể so với môi trường có hỗ trợ GPU.
 
 ---
 
-## Citation
+## Hướng phát triển Tương lai
+
+- [ ] Thử nghiệm và tích hợp các phương pháp dung hợp ảnh dựa trên mạng học sâu tiên tiến (ví dụ: DenseFuse, RFN-Nest).
+- [ ] Mở rộng bài toán sang hệ thống nhận diện đa lớp (nhận diện thêm phương tiện giao thông, người đi xe đạp).
+- [ ] Thực hiện đánh giá so sánh hiệu năng giữa các phiên bản YOLOv8n, YOLOv8m và YOLOv8l.
+- [ ] Tích hợp tính năng xuất mô hình sang định dạng TensorRT/ONNX để tối ưu hóa triển khai trên các thiết bị biên (Edge Devices).
+- [ ] Ứng dụng các thuật toán theo dõi đối tượng (ByteTrack / BotSort) phục vụ bài toán đếm số lượng người đi bộ qua video.
+- [ ] Đánh giá kiểm thử mô hình trên các bộ dữ liệu đa miền đêm tối khác như KAIST hoặc CVC-14.
+- [ ] Đóng gói và phát hành các trọng số đã huấn luyện (pretrained weights) lên nền tảng Hugging Face Hub.
+
+---
+
+## Trích dẫn
 
 If you use this work, please cite the LLVIP dataset:
 
