@@ -220,7 +220,7 @@ Inference thresholds: `conf=0.25`, `iou=0.45`.
 ### Setup
 
 ```bash
-git clone https://github.com/<Nhdnguyenhoangduc>/llvip-pedestrian-detection.git
+git clone https://github.com/Nhdnguyenhoangduc/llvip-pedestrian-detection.git
 cd llvip-pedestrian-detection
 
 pip install -r requirements.txt
